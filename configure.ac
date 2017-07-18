@@ -100,6 +100,10 @@ AC_PROG_RANLIB
 
 AC_LANG([C++])
 AX_CXX_COMPILE_STDCXX_11([noext], [optional])
+if test "$ac_success" = "no"; then
+  CXXFLAGS="$CXXFLAGS -Wno-variadic-macros -Wno-long-long -Wno-c++11-long-long"
+fi
+CXXFLAGS="$CXXFLAGS -Wno-deprecated-register"
 
 AM_EXTRA_RECURSIVE_TARGETS([style])
 AC_SUBST(CPPSTYLE_CMD, 'find . -type f \( -iname "*.h" -or -iname "*.cpp" -or -iname "*.cc" -or -iname "*.tcc" \) -printf "Reformatting: %h/%f\n" -exec clang-format -i {} \;')
@@ -198,8 +202,8 @@ AM_CONDITIONAL(WITH_C_GLIB, [test "$have_glib2" = "yes" -a "$have_gobject2" = "y
 
 echo "OpenSSL check"
 if test "$have_cpp" = "yes" -o "$have_c_glib" = "yes";  then
-	echo "Have cpp or c so we check for OpenSSL"
-	AX_CHECK_OPENSSL()
+  echo "Have cpp or c so we check for OpenSSL"
+  AX_CHECK_OPENSSL()
 fi
 
 AX_THRIFT_LIB(csharp, [C#], yes)
@@ -393,7 +397,7 @@ if test "$with_go" = "yes";  then
   AC_PATH_PROG([GO], [go])
   if [[ -x "$GO" ]] ; then
     AS_IF([test -n "$GO"],[
-      ax_go_version="1.4"
+      ax_go_version="1.7"
 
       AC_MSG_CHECKING([for Go version])
       golang_version=`$GO version 2>&1 | $SED -e 's/\(go \)\(version \)\(go\)\(@<:@0-9@:>@.@<:@0-9@:>@.@<:@0-9@:>@\)\(@<:@\*@:>@*\).*/\4/'`

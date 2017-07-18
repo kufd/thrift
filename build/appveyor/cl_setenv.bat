@@ -21,7 +21,7 @@
 ) ELSE IF "%PROFILE%" == "MSVC2015" (
   CALL "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat" %PLATFORM%
 ) ELSE IF "%PROFILE%" == "MSVC2017" (
-  CALL "C:\Program Files (x86)\Microsoft Visual Studio 15.0\VC\vcvarsall.bat" %PLATFORM%
+  CALL "C:\Program Files (x86)\Microsoft Visual Studio\2017\Enterprise\Common7\Tools\VsDevCmd.bat" %PLATFORM%
 ) ELSE IF "%PROFILE%" == "MINGW" (
   SET MSYS2_PATH_TYPE=stock
 ) ELSE IF "%PROFILE%" == "MSYS" (
@@ -40,17 +40,30 @@ SET BUILDDIR=%APPVEYOR_BUILD_FOLDER%\local-thrift-build
 SET INSTDIR=%APPVEYOR_BUILD_FOLDER%\local-thrift-inst
 SET SRCDIR=%APPVEYOR_BUILD_FOLDER%
 
-SET BOOST_ROOT=C:\Libraries\boost_%BOOST_VERSION:.=_%
-SET BOOST_LIBRARYDIR=%BOOST_ROOT%\lib%PLATFORM:~-2,2%-msvc-%COMPILER:~-3,2%.0
-SET OPENSSL_ROOT=C:\OpenSSL-Win%PLATFORM:~-2,2%
+: PLATFORM is x64 or x86, but we want x86 to become "32" when we strip it down for paths:
+SET NORM_PLATFORM=%PLATFORM:~-2,2%
+IF "%NORM_PLATFORM%" == "86" (SET NORM_PLATFORM=32)
+
+:: FindBoost needs forward slashes so cmake doesn't see something as an escaped character
+SET BOOST_ROOT=C:/Libraries/boost_%BOOST_VERSION:.=_%
+SET BOOST_LIBRARYDIR=%BOOST_ROOT%/lib%NORM_PLATFORM%-msvc-%COMPILER:~-3,2%.0
+SET OPENSSL_ROOT=C:\OpenSSL-Win%NORM_PLATFORM%
 SET WIN3P=%APPVEYOR_BUILD_FOLDER%\thirdparty
+
+:: MSVC2010 doesn't "do" std::thread
+IF "%COMPILER%" == "vc100" (
+  SET THREADMODEL=BOOST
+) ELSE (
+  SET THREADMODEL=STD
+)
+
 IF "%PYTHON_VERSION%" == "" (
   SET WITH_PYTHON=OFF
 ) ELSE (
   SET WITH_PYTHON=ON
   SET PATH=C:\Python%PYTHON_VERSION:.=%\scripts;C:\Python%PYTHON_VERSION:.=%;!PATH!
 )
-IF "%CONFIGURATION%" == "Debug" (SET ZLIB_STATIC_SUFFIX=d)
+IF "%CONFIGURATION%" == "Debug" (SET ZLIB_LIB_SUFFIX=d)
 
 IF NOT "%QT_VERSION%" == "" (
   IF /i "%PLATFORM%" == "x64" SET QTEXT=_64

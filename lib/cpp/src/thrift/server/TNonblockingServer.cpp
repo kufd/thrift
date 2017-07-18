@@ -288,6 +288,7 @@ public:
   void forceClose() {
     appState_ = APP_CLOSE_CONNECTION;
     if (!notifyIOThread()) {
+      server_->decrementActiveProcessors();
       close();
       throw TException("TConnection::forceClose: failed write on notify pipe");
     }
@@ -349,6 +350,7 @@ public:
     // Signal completion back to the libevent thread via a pipe
     if (!connection_->notifyIOThread()) {
       GlobalOutput.printf("TNonblockingServer: failed to notifyIOThread, closing.");
+      connection_->server_->decrementActiveProcessors();
       connection_->close();
       throw TException("TNonblockingServer::Task::run: failed write on notify pipe");
     }
@@ -591,21 +593,24 @@ void TNonblockingServer::TConnection::transition() {
       // The application is now waiting on the task to finish
       appState_ = APP_WAIT_TASK;
 
+      // Set this connection idle so that libevent doesn't process more
+      // data on it while we're still waiting for the threadmanager to
+      // finish this task
+      setIdle();
+
       try {
         server_->addTask(task);
       } catch (IllegalStateException& ise) {
         // The ThreadManager is not ready to handle any more tasks (it's probably shutting down).
         GlobalOutput.printf("IllegalStateException: Server::process() %s", ise.what());
+        server_->decrementActiveProcessors();
         close();
       } catch (TimedOutException& to) {
         GlobalOutput.printf("[ERROR] TimedOutException: Server::process() %s", to.what());
+        server_->decrementActiveProcessors();
         close();
       }
 
-      // Set this connection idle so that libevent doesn't process more
-      // data on it while we're still waiting for the threadmanager to
-      // finish this task
-      setIdle();
       return;
     } else {
       try {
@@ -818,10 +823,7 @@ void TNonblockingServer::TConnection::setFlags(short eventFlags) {
  * Closes a connection
  */
 void TNonblockingServer::TConnection::close() {
-  if (eventFlags_ && event_del(&event_) == -1) {
-    GlobalOutput.perror("TConnection::close() event_del", THRIFT_GET_SOCKET_ERROR);
-    return;
-  }
+  setIdle();
 
   if (serverEventHandler_) {
     serverEventHandler_->deleteContext(connectionContext_, inputProtocol_, outputProtocol_);
@@ -1004,7 +1006,7 @@ void TNonblockingServer::handleEvent(THRIFT_SOCKET fd, short which) {
     } else {
       if (!clientConnection->notifyIOThread()) {
         GlobalOutput.perror("[ERROR] notifyIOThread failed on fresh connection, closing", errno);
-        returnConnection(clientConnection);
+        clientConnection->close();
       }
     }
 
